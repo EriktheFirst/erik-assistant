@@ -4,5 +4,3 @@ python-dotenv==1.0.0
 requests==2.31.0
 caldav==0.8.1
 flask==2.3.3
-
-Пример содержимого файла requirements.txt.
