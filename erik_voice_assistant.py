@@ -1,49 +1,56 @@
 import os
 import logging
 import asyncio
+
 from flask import Flask, request
-from dotenv import load_dotenv
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-load_dotenv()
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-app = Flask(__name__)
+# 🔹 Настройка логов
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=TELEGRAM_TOKEN)
-application = Application.builder().token(TELEGRAM_TOKEN).build()
+# 🔹 Создание Flask-приложения
+app = Flask(__name__)
 
-# === Telegram handlers ===
+# 🔹 Получение токена из переменных окружения (Render)
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
-async def start(update: Update, context):
-    await update.message.reply_text("Привет! Я голосовой ассистент. Просто напиши что-нибудь.")
+# 🔹 Создание telegram-приложения
+application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-async def echo(update: Update, context):
-    await update.message.reply_text(f"Вы сказали: {update.message.text}")
+
+# 🔹 Обработчик команды /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Привет! Я жив!")
 
 application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# === Webhook ===
 
-@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
-def webhook():
+# 🔹 Инициализация Telegram-бота перед первым запросом
+@app.before_serving
+async def init_bot():
+    await application.initialize()
+    await application.start()
+    webhook_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/{TELEGRAM_TOKEN}"
+    await application.bot.set_webhook(webhook_url)
+    logging.info(f"📡 Webhook установлен: {webhook_url}")
+
+
+# 🔹 Обработка входящих webhook-запросов от Telegram
+@app.post(f"/{TELEGRAM_TOKEN}")
+async def webhook_handler():
     try:
-        update = Update.de_json(request.get_json(force=True), bot)
-        asyncio.run(application.process_update(update))
+        update = Update.de_json(request.json, application.bot)
+        await application.process_update(update)
     except Exception as e:
-        logging.error("❌ Ошибка во webhook: %s", e)
+        logging.error(f"❌ Ошибка во webhook: {e}")
         return "error", 400
     return "ok", 200
 
-@app.route("/")
-def index():
-    return "👋 Бот работает!"
 
+# 🔹 Точка входа
 if __name__ == "__main__":
-    PORT = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=PORT)
+    import os
+
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
