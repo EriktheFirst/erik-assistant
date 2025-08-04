@@ -11,7 +11,8 @@ load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
+print("TELEGRAM_TOKEN:", TELEGRAM_TOKEN)
+print("OPENAI_API_KEY:", OPENAI_API_KEY)
 logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
