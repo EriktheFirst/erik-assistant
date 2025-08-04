@@ -1,0 +1,3 @@
+[Шаблон Looker Studio]
+
+Пример содержимого файла lookerstudio/template_url.txt.
