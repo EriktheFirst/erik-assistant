@@ -2,83 +2,65 @@ import os
 import logging
 import asyncio
 from flask import Flask, request
-from telegram import Update, Bot
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    ContextTypes, filters
-)
-import openai
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from openai import OpenAI
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-webhook_url = f"https://erik-assistant.onrender.com/{TELEGRAM_TOKEN}"
-
-app = Flask(__name__)
-bot = Bot(token=TELEGRAM_TOKEN)
-application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-openai.api_key = OPENAI_API_KEY
+# Логирование
 logging.basicConfig(level=logging.INFO)
 
+# Flask
+app = Flask(__name__)
 
-# Ответ от GPT
+# Токены из Render env
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# Асинхронный обработчик сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        user_message = update.message.text
+        reply = await chatgpt_response(user_message)
+        await update.message.reply_text(reply)
+    except Exception as e:
+        logging.error("Handle message error: %s", e)
+        await update.message.reply_text("Ошибка при обработке сообщения.")
+
+# Получение ответа от GPT
 async def chatgpt_response(text):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": text}]
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        logging.error(f"OpenAI error: {e}")
-        return "Ошибка при запросе к GPT."
+        logging.error("OpenAI error: %s", e)
+        return "Ошибка при обращении к OpenAI."
 
-
-# Хэндлеры
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Я Ерик — твой ИИ-помощник.")
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_input = update.message.text
-    reply = await chatgpt_response(user_input)
-    await update.message.reply_text(reply)
-
-
-application.add_handler(CommandHandler("start", start))
+# Создание Telegram приложения
+application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-
-# Webhook-обработчик
+# Webhook Flask
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
-async def webhook():
-    try:
-        data = request.get_json(force=True)
-        update = Update.de_json(data, bot)
-        await application.process_update(update)
-    except Exception as e:
-        logging.error(f"❌ Ошибка во webhook: {e}")
-        return "error", 400
-    return "ok", 200
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    asyncio.get_event_loop().create_task(application.process_update(update))
+    return "OK"
 
+# Установка Webhook при запуске
+@app.before_first_request
+def set_webhook():
+    url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{TELEGRAM_TOKEN}"
+    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook", data={"url": url})
+    logging.info("Webhook set: %s", r.text)
 
-# Запуск бота + установка webhook
-async def startup():
-    await application.initialize()
-    await application.start()
-    # Установка webhook
-    requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
-        data={"url": webhook_url}
-    )
-    print("✅ Webhook установлен:", webhook_url)
-
-
-# Flask + Telegram
+# Старт Flask
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(startup())
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
