@@ -49,6 +49,8 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 if __name__ == "__main__":
-    import threading
-    threading.Thread(target=application.run_polling, daemon=True).start()
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.create_task(application.initialize())
+    loop.create_task(application.start())
     app.run(host="0.0.0.0", port=10000)
