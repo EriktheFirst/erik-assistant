@@ -1,3 +1,54 @@
-[Основной код бота]
+import os
+import logging
+from flask import Flask, request
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import openai
+from dotenv import load_dotenv
 
-Пример содержимого файла erik_voice_assistant.py.
+load_dotenv()
+
+TELEGRAM_TOKEN = os.getenv("8055390025:AAHhuMLXDnb1mxBpy9XEsXXFLQFL2b-5tAA")
+OPENAI_API_KEY = os.getenv("kWdFrBkqRk94n94o4G4CXez3GfDuoxV9l57hwoU3IqQIwNebQ7EyyN_H8AtKMi4LtL61zaaEkpT3BlbkFJykXigPExEjogsaPpx5TtzEjvP6nnQcfoB_Rb2d3epPPJywm0aQvv6KEGA4AbJ4S7z8pAbTJn0A")
+
+logging.basicConfig(level=logging.INFO)
+
+app = Flask(__name__)
+bot = Bot(token=TELEGRAM_TOKEN)
+
+openai.api_key = OPENAI_API_KEY
+
+# Функция ответа через ChatGPT
+async def chatgpt_response(text):
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": text}]
+    )
+    return response['choices'][0]['message']['content'].strip()
+
+# Команда /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Привет! Я Ерик — твой ИИ-помощник. Спроси меня о чём угодно!")
+
+# Обработка всех сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
+    reply = await chatgpt_response(user_input)
+    await update.message.reply_text(reply)
+
+# Flask маршрут для Webhook
+@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    application.update_queue.put_nowait(update)
+    return "ok"
+
+# Инициализация Telegram Application
+application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+if __name__ == "__main__":
+    import threading
+    threading.Thread(target=application.run_polling, daemon=True).start()
+    app.run(host="0.0.0.0", port=10000)
