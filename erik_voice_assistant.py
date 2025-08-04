@@ -8,7 +8,6 @@ from telegram.ext import (
     MessageHandler,
     ContextTypes,
     AIORateLimiter,
-    defaults,
     filters
 )
 import openai
