@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
@@ -15,8 +16,8 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
-application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
+application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 openai.api_key = OPENAI_API_KEY
 
 async def chatgpt_response(text):
@@ -43,8 +44,11 @@ def webhook():
     application.update_queue.put_nowait(update)
     return "ok"
 
-if __name__ == "__main__":
-    application.initialize()
+# Оборачиваем запуск в асинхронную функцию
+async def main():
+    await application.initialize()
     app.run(host="0.0.0.0", port=10000)
 
-  
+# Запуск
+if __name__ == "__main__":
+    asyncio.run(main())
