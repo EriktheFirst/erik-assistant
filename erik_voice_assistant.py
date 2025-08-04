@@ -8,66 +8,77 @@ from telegram.ext import (
     ContextTypes, filters
 )
 import openai
+import requests
 from dotenv import load_dotenv
 
-# Загрузка переменных среды
 load_dotenv()
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+webhook_url = f"https://erik-assistant.onrender.com/{TELEGRAM_TOKEN}"
 
-# Логирование
-logging.basicConfig(level=logging.INFO)
-
-# Flask app
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
-
-# Создание Telegram-приложения
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# OpenAI API
 openai.api_key = OPENAI_API_KEY
+logging.basicConfig(level=logging.INFO)
 
-# /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Я Ерик — твой ИИ-помощник.")
 
-# Обработка текстовых сообщений
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_input = update.message.text
+# Ответ от GPT
+async def chatgpt_response(text):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
-            messages=[{"role": "user", "content": user_input}]
+            messages=[{"role": "user", "content": text}]
         )
-        reply = response.choices[0].message.content.strip()
-        await update.message.reply_text(reply)
+        return response['choices'][0]['message']['content'].strip()
     except Exception as e:
-        logging.error(f"Ошибка при обращении к OpenAI: {e}")
-        await update.message.reply_text("Произошла ошибка при обработке запроса.")
+        logging.error(f"OpenAI error: {e}")
+        return "Ошибка при запросе к GPT."
 
-# Регистрируем handlers
+
+# Хэндлеры
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Привет! Я Ерик — твой ИИ-помощник.")
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
+    reply = await chatgpt_response(user_input)
+    await update.message.reply_text(reply)
+
+
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Инициализируем Telegram Application
-@app.before_first_request
-def init_telegram_app():
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(application.initialize())
-    loop.run_until_complete(application.start())
 
-# Webhook endpoint
+# Webhook-обработчик
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 async def webhook():
     try:
-        update = Update.de_json(request.get_json(force=True), bot)
+        data = request.get_json(force=True)
+        update = Update.de_json(data, bot)
         await application.process_update(update)
-        return "ok"
     except Exception as e:
-        logging.error("❌ Ошибка во webhook:", exc_info=e)
+        logging.error(f"❌ Ошибка во webhook: {e}")
         return "error", 400
+    return "ok", 200
 
-# Запуск Flask
+
+# Запуск бота + установка webhook
+async def startup():
+    await application.initialize()
+    await application.start()
+    # Установка webhook
+    requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
+        data={"url": webhook_url}
+    )
+    print("✅ Webhook установлен:", webhook_url)
+
+
+# Flask + Telegram
 if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(startup())
     app.run(host="0.0.0.0", port=10000)
