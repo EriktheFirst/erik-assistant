@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TELEGRAM_TOKEN = os.getenv("8055390025:AAHhuMLXDnb1mxBpy9XEsXXFLQFL2b-5tAA")
-OPENAI_API_KEY = os.getenv("kWdFrBkqRk94n94o4G4CXez3GfDuoxV9l57hwoU3IqQIwNebQ7EyyN_H8AtKMi4LtL61zaaEkpT3BlbkFJykXigPExEjogsaPpx5TtzEjvP6nnQcfoB_Rb2d3epPPJywm0aQvv6KEGA4AbJ4S7z8pAbTJn0A")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 logging.basicConfig(level=logging.INFO)
 
