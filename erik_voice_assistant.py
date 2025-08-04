@@ -17,29 +17,22 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Проверка токенов
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
     raise ValueError("❌ TELEGRAM_TOKEN или OPENAI_API_KEY не установлены")
 
-# Логирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Flask приложение
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
-
-# Telegram Application
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-# OpenAI API
 openai.api_key = OPENAI_API_KEY
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет! Я Ерик — твой ИИ-помощник.")
 
-# Ответ на текст
+# Обработка сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     logger.info("📩 Получено сообщение: %s", user_input)
@@ -54,22 +47,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = "Произошла ошибка при обращении к GPT."
     await update.message.reply_text(reply)
 
-# Обработчики Telegram
+# Добавляем обработчики
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Webhook endpoint
+# Flask endpoint для webhook
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def telegram_webhook():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
-        asyncio.create_task(application.process_update(update))
+        loop = asyncio.get_event_loop()
+        asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         return "ok"
     except Exception as e:
         logger.error("❌ Ошибка во webhook: %s", e)
         return "error", 400
 
-# Установка Webhook вручную
+# Установка webhook
 def set_webhook():
     url = f"https://erik-assistant.onrender.com/{TELEGRAM_TOKEN}"
     r = requests.post(
@@ -78,7 +72,7 @@ def set_webhook():
     )
     logger.info("📡 Установка Webhook: %s", r.text)
 
-# Запуск всего
+# Запуск бота и сервера
 async def run():
     await application.initialize()
     await application.start()
@@ -89,4 +83,3 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(run())
     app.run(host="0.0.0.0", port=10000)
-
