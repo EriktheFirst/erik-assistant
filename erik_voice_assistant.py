@@ -37,11 +37,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-@app.route("/webhook", methods=["POST"])
+@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     application.update_queue.put_nowait(update)
     return "ok"
 
 if __name__ == "__main__":
+    application.initialize()
     app.run(host="0.0.0.0", port=10000)
+
+  
