@@ -1,3 +1,7 @@
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("Получено сообщение:", update.message.text)
+    ...
+
 import os
 import logging
 import asyncio
